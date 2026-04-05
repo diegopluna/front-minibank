@@ -7,15 +7,24 @@ import { Button } from '@/components/ui/button'
 import { MiniBankLogo } from '@/components/minibank-logo'
 import { useSession } from '@/lib/auth'
 import { authClient } from '@/lib/auth-client'
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
   const router = useRouter()
   const { data: session, isPending } = useSession()
 
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.push('/sign-in')
+    }
+  }, [isPending, session, router])
+
   async function handleSignOut() {
     await authClient.signOut()
     router.push('/sign-in')
   }
+
+
 
   if (isPending) {
     return (
@@ -25,12 +34,8 @@ export default function DashboardPage() {
     )
   }
 
-  if (!session) {
-    router.push('/sign-in')
-    return null
-  }
 
-  const user = session.user
+  const user = session?.user
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center">
@@ -38,7 +43,7 @@ export default function DashboardPage() {
         <CardTitle className="flex flex-col items-center gap-2">
           <MiniBankLogo />
           <p className="text-sm font-normal text-muted-foreground">
-            Bem-vindo(a), {user.name}
+            Bem-vindo(a), {user?.name}
           </p>
         </CardTitle>
 
@@ -47,12 +52,12 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Conta</span>
               <span className="font-mono text-sm font-medium">
-                {user.username ?? '-'}
+                {user?.username ?? '-'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">E-mail</span>
-              <span className="text-sm font-medium">{user.email}</span>
+              <span className="text-sm font-medium">{user?.email}</span>
             </div>
           </div>
 
