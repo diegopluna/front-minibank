@@ -1,10 +1,11 @@
 import { Geist, Geist_Mono } from 'next/font/google'
 
-import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { QueryProvider } from '@/components/query-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import './globals.css'
+
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
 
