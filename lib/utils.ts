@@ -31,6 +31,37 @@ export function formatShortDate(iso: string) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+export function parseBrlToInt(value: string): number | null {
+  const clean = value.replace(/\s/g, '').replace(',', '.')
+  const parsed = parseFloat(clean)
+  if (Number.isNaN(parsed) || parsed <= 0) return null
+  return Math.round(parsed * 100)
+}
+
+export function extractApiError(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'Erro inesperado.'
+  const err = error as Record<string, unknown>
+
+  if (err.errors && typeof err.errors === 'object') {
+    const errors = err.errors as { details?: { path?: string[]; message?: string }[] }
+    if (Array.isArray(errors.details) && errors.details.length > 0) {
+      return errors.details
+        .map((d) => {
+          const field = d.path?.join('.') ?? ''
+          return field ? `${field}: ${d.message}` : (d.message ?? '')
+        })
+        .filter(Boolean)
+        .join('; ')
+    }
+  }
+
+  if (typeof err.message === 'string' && err.message !== 'Validation Failed') {
+    return err.message
+  }
+
+  return 'Erro inesperado. Tente novamente.'
+}
+
 export function getInitials(name: string) {
   return name
     .split(' ')
