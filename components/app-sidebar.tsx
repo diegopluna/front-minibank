@@ -24,14 +24,20 @@ import {
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { formatAccountNumber, getInitials } from '@/lib/utils'
-import { useSession } from '@/lib/auth'
+import { useSession, isManager } from '@/lib/auth'
 import { authClient } from '@/lib/auth-client'
 import type { IconSvgElement } from '@hugeicons/react'
 
-const navItems: { href: string; label: string; icon: IconSvgElement }[] = [
+type NavItem = { href: string; label: string; icon: IconSvgElement }
+
+const clientNav: NavItem[] = [
   { href: '/dashboard', label: 'Início', icon: Home01Icon },
   { href: '/transfer', label: 'Transferir', icon: ArrowDataTransferHorizontalIcon },
   { href: '/loans', label: 'Empréstimos', icon: MoneyBag02Icon },
+]
+
+const managerNav: NavItem[] = [
+  { href: '/manager/loans', label: 'Empréstimos', icon: MoneyBag02Icon },
 ]
 
 export function AppSidebar() {
@@ -39,6 +45,9 @@ export function AppSidebar() {
   const router = useRouter()
   const { data: session } = useSession()
   const user = session?.user
+  const manager = user ? isManager(user) : false
+  const navItems = manager ? managerNav : clientNav
+  const groupLabel = manager ? 'Gerência' : 'Menu'
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -58,7 +67,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
