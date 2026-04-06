@@ -1,71 +1,111 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-
-import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { MiniBankLogo } from '@/components/minibank-logo'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useSession } from '@/lib/auth'
-import { authClient } from '@/lib/auth-client'
-import { useEffect } from 'react';
+import { $api } from '@/lib/api/client'
+import { formatCurrency, formatShortDate, formatAccountNumber } from '@/lib/utils'
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const { data: session, isPending } = useSession()
-
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push('/sign-in')
-    }
-  }, [isPending, session, router])
-
-  async function handleSignOut() {
-    await authClient.signOut()
-    router.push('/sign-in')
-  }
-
-
-
-  if (isPending) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    )
-  }
-
-
+  const { data: session } = useSession()
   const user = session?.user
 
+  const { data: balanceData, isLoading: balanceLoading } = $api.useQuery(
+    'get',
+    '/api/accounts/balance',
+  )
+
+  const { data: transfersData, isLoading: transfersLoading } = $api.useQuery(
+    'get',
+    '/api/transfers',
+  )
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center">
-      <Card className="flex w-full max-w-md flex-col gap-5 p-8">
-        <CardTitle className="flex flex-col items-center gap-2">
-          <MiniBankLogo />
-          <p className="text-sm font-normal text-muted-foreground">
-            Bem-vindo(a), {user?.name}
-          </p>
-        </CardTitle>
+    <div className="mx-auto max-w-4xl space-y-8">
+      <h1 className="text-2xl font-bold">
+        Olá, {user?.name?.split(' ')[0]}!
+      </h1>
 
-        <CardContent className="flex flex-col gap-4 p-0">
-          <div className="flex flex-col gap-2 rounded-lg bg-muted/50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Conta</span>
-              <span className="font-mono text-sm font-medium">
-                {user?.username ?? '-'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">E-mail</span>
-              <span className="text-sm font-medium">{user?.email}</span>
-            </div>
-          </div>
-
-          <Button variant="outline" className="w-full" onClick={handleSignOut}>
-            Sair
-          </Button>
-        </CardContent>
+      <Card className="flex flex-col gap-1 p-6">
+        <span className="text-sm text-muted-foreground">Saldo Disponível</span>
+        {balanceLoading ? (
+          <Skeleton className="h-10 w-48" />
+        ) : (
+          <span className="text-4xl font-bold tracking-tight">
+            {formatCurrency(balanceData?.balance ?? 0)}
+          </span>
+        )}
       </Card>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Movimentações Recentes</h2>
+
+        {transfersLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : !transfersData?.transfers?.length ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            Nenhuma movimentação encontrada.
+          </Card>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Tipo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transfersData.transfers.map((t) => {
+                const isSent = t.direction === 'SENT'
+                return (
+                  <TableRow key={t.transferId}>
+                    <TableCell className="text-muted-foreground">
+                      {formatShortDate(t.occurredAt)}
+                    </TableCell>
+                    <TableCell>
+                      Transferência {isSent ? 'para' : 'de'} conta{' '}
+                      {formatAccountNumber(String(t.otherAccountNumber))}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-medium ${isSent ? 'text-destructive' : 'text-emerald-600'}`}
+                    >
+                      {isSent ? '- ' : '+ '}
+                      {formatCurrency(t.amount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant={isSent ? 'destructive' : 'default'}
+                        className={
+                          isSent
+                            ? ''
+                            : 'bg-emerald-600/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                        }
+                      >
+                        {isSent ? 'Enviado' : 'Recebido'}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   )
 }
