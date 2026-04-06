@@ -3,8 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, type ReactNode } from 'react'
 import { AppSidebar } from '@/components/app-sidebar'
-import { useSession } from '@/lib/auth'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSession } from '@/lib/auth'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -21,9 +22,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <SidebarProvider>
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto bg-background p-8">
+      <SidebarInset className="p-8">
         {isPending ? (
           <div className="mx-auto max-w-4xl space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -33,7 +34,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         ) : (
           children
         )}
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

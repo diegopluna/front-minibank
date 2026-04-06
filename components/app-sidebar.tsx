@@ -10,9 +10,20 @@ import {
   Logout01Icon,
   LandmarkIcon,
 } from '@hugeicons/core-free-icons'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
-import { cn, formatAccountNumber, getInitials } from '@/lib/utils'
+import { formatAccountNumber, getInitials } from '@/lib/utils'
 import { useSession } from '@/lib/auth'
 import { authClient } from '@/lib/auth-client'
 import type { IconSvgElement } from '@hugeicons/react'
@@ -35,64 +46,61 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-[#111] text-white">
-      <div className="flex items-center gap-2.5 px-5 py-6">
-        <div className="flex size-8 items-center justify-center rounded-md bg-white">
-          <HugeiconsIcon icon={LandmarkIcon} size={18} className="text-[#111]" />
+    <Sidebar collapsible="none" className="border-r-0">
+      <SidebarHeader className="px-4 py-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-md bg-sidebar-primary">
+            <HugeiconsIcon icon={LandmarkIcon} size={18} className="text-sidebar-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">MiniBank</span>
         </div>
-        <span className="text-lg font-bold tracking-tight">MiniBank</span>
-      </div>
+      </SidebarHeader>
 
-      <div className="px-5 pt-2 pb-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
-          Menu
-        </span>
-      </div>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    isActive={pathname === item.href}
+                    tooltip={item.label}
+                    render={<Link href={item.href} />}
+                  >
+                    <HugeiconsIcon icon={item.icon} size={18} />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
 
-      <nav className="flex flex-1 flex-col gap-0.5 px-3">
-        {navItems.map((item) => {
-          const active = pathname === item.href
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white/80',
-              )}
-            >
-              <HugeiconsIcon icon={item.icon} size={18} />
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-
-      <Separator className="bg-white/10" />
-
-      <div className="flex items-center gap-3 px-5 py-4">
-        <Avatar className="size-9 bg-white/10 text-xs font-bold text-white">
-          <AvatarFallback className="bg-white/10 text-white">
-            {user?.name ? getInitials(user.name) : '??'}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm font-medium">{user?.name ?? '...'}</span>
-          <span className="text-xs text-white/50">
-            Conta: {user?.username ? formatAccountNumber(user.username) : '...'}
-          </span>
+      <SidebarFooter className="px-3 py-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="size-9 shrink-0">
+            <AvatarFallback className="text-xs font-semibold">
+              {user?.name ? getInitials(user.name) : '??'}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-medium">{user?.name ?? '...'}</span>
+            <span className="text-xs text-sidebar-foreground/50">
+              Conta: {user?.username ? formatAccountNumber(user.username) : '...'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="shrink-0 rounded-md p-1.5 text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            aria-label="Sair"
+          >
+            <HugeiconsIcon icon={Logout01Icon} size={18} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="shrink-0 rounded-md p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Sair"
-        >
-          <HugeiconsIcon icon={Logout01Icon} size={18} />
-        </button>
-      </div>
-    </aside>
+      </SidebarFooter>
+    </Sidebar>
   )
 }
