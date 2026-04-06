@@ -22,6 +22,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
+    <div className="flex min-h-screen">
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="p-8">
@@ -36,5 +37,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         )}
       </SidebarInset>
     </SidebarProvider>
+    </div>
   )
 }
