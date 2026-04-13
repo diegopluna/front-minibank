@@ -152,9 +152,7 @@ export default function SignInPage() {
               </Link>
             </p>
 
-            <p className="text-center text-xs italic text-muted-foreground">
-              Gerentes: use a conta &quot;gerencia&quot;
-            </p>
+            
           </form>
         </CardContent>
       </Card>
