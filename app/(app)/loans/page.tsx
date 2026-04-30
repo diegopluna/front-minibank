@@ -1,51 +1,39 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from '@tanstack/react-form'
 import { useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { fetchClient } from '@/lib/api/client'
-import { parseBrlToInt, formatCurrency, extractApiError } from '@/lib/utils'
+import { $api } from '@/lib/api/client'
+import { useAppForm } from '@/lib/form'
+import { extractApiError, formatCurrency, parseBrlToInt } from '@/lib/utils'
+
+const schema = z.object({
+  amount: z
+    .string()
+    .refine((v) => parseBrlToInt(v) !== null, 'Valor deve ser maior que zero'),
+  reason: z.string().min(1, 'Motivo é obrigatório'),
+})
 
 export default function LoansPage() {
   const queryClient = useQueryClient()
-  const [serverError, setServerError] = useState('')
-  const [success, setSuccess] = useState('')
+  const balanceOpts = $api.queryOptions('get', '/api/accounts/balance')
 
-  const form = useForm({
-    defaultValues: {
-      amount: '',
-      reason: '',
-    },
-    onSubmit: async ({ value }) => {
-      setServerError('')
-      setSuccess('')
+  const loanMutation = $api.useMutation('post', '/api/loans', {
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: balanceOpts.queryKey }),
+  })
 
+  const form = useAppForm({
+    defaultValues: { amount: '', reason: '' },
+    validators: { onSubmit: schema },
+    onSubmit: async ({ value, formApi }) => {
       const amountCents = parseBrlToInt(value.amount)
-      if (amountCents === null) {
-        setServerError('Valor deve ser maior que zero.')
-        return
-      }
-
-      const { data, error } = await fetchClient.POST('/api/loans', {
+      if (amountCents === null) return
+      await loanMutation.mutateAsync({
         body: { amount: amountCents, reason: value.reason },
       })
-
-      if (error) {
-        setServerError(extractApiError(error))
-        return
-      }
-
-      setSuccess(
-        `Empréstimo solicitado! Valor: ${formatCurrency(data?.amount ?? 0)} — Status: ${data?.status}`,
-      )
-      form.reset()
-      queryClient.invalidateQueries({ queryKey: ['get', '/api/accounts/balance'] })
+      formApi.reset()
     },
   })
 
@@ -62,85 +50,41 @@ export default function LoansPage() {
             }}
             className="flex flex-col gap-5"
           >
-            <form.Field
-              name="amount"
-              validators={{
-                onSubmit: ({ value }) => {
-                  if (!value) return 'Valor é obrigatório'
-                  const parsed = parseFloat(value.replace(',', '.'))
-                  if (Number.isNaN(parsed) || parsed <= 0)
-                    return 'Valor deve ser maior que zero'
-                  return undefined
-                },
-              }}
-            >
-              {(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amount">Valor Desejado (R$)</Label>
-                  <Input
-                    id="amount"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={field.state.value}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/[^0-9.,]/g, '')
-                      field.handleChange(v)
-                    }}
-                    onBlur={field.handleBlur}
-                  />
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-xs text-destructive">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
+            <form.AppField name="amount">
+              {(f) => <f.MoneyField label="Valor Desejado (R$)" />}
+            </form.AppField>
 
-            <form.Field
-              name="reason"
-              validators={{
-                onSubmit: ({ value }) =>
-                  !value.trim() ? 'Motivo é obrigatório' : undefined,
-              }}
-            >
-              {(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="reason">Motivo</Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="Descreva o motivo do empréstimo"
-                    rows={4}
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                  />
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-xs text-destructive">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
+            <form.AppField name="reason">
+              {(f) => (
+                <f.TextareaField
+                  label="Motivo"
+                  textareaProps={{
+                    rows: 4,
+                    placeholder: 'Descreva o motivo do empréstimo',
+                  }}
+                />
               )}
-            </form.Field>
+            </form.AppField>
 
-            {serverError && (
-              <p className="text-center text-sm text-destructive">{serverError}</p>
+            {loanMutation.isError && (
+              <p className="text-center text-sm text-destructive">
+                {extractApiError(loanMutation.error as unknown)}
+              </p>
             )}
-            {success && (
+            {loanMutation.isSuccess && (
               <p className="text-center text-sm font-medium text-emerald-600">
-                {success}
+                Empréstimo solicitado! Valor:{' '}
+                {formatCurrency(loanMutation.data.amount)} — Status:{' '}
+                {loanMutation.data.status}
               </p>
             )}
 
-            <form.Subscribe selector={(s) => s.isSubmitting}>
-              {(isSubmitting) => (
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Solicitando...' : 'Solicitar Empréstimo'}
-                </Button>
-              )}
-            </form.Subscribe>
+            <form.AppForm>
+              <form.SubmitButton
+                label="Solicitar Empréstimo"
+                pendingLabel="Solicitando..."
+              />
+            </form.AppForm>
           </form>
         </CardContent>
       </Card>

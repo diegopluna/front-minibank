@@ -1,63 +1,52 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from '@tanstack/react-form'
 import { useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { $api, fetchClient } from '@/lib/api/client'
-import { formatCurrency, maskAccountInput, parseBrlToInt, extractApiError } from '@/lib/utils'
+import { $api } from '@/lib/api/client'
+import { useAppForm } from '@/lib/form'
+import { extractApiError, formatCurrency, parseBrlToInt } from '@/lib/utils'
+
+const schema = z.object({
+  toAccountNumber: z.string().refine((v) => Number(v) > 0, 'Número da conta inválido'),
+  amount: z
+    .string()
+    .refine((v) => parseBrlToInt(v) !== null, 'Valor deve ser maior que zero'),
+})
 
 export default function TransferPage() {
   const queryClient = useQueryClient()
-  const [serverError, setServerError] = useState('')
-  const [success, setSuccess] = useState('')
+
+  const balanceOpts = $api.queryOptions('get', '/api/accounts/balance')
+  const transfersOpts = $api.queryOptions('get', '/api/transfers')
 
   const { data: balanceData, isLoading: balanceLoading } = $api.useQuery(
     'get',
     '/api/accounts/balance',
   )
 
-  const form = useForm({
-    defaultValues: {
-      toAccountNumber: '',
-      amount: '',
+  const transferMutation = $api.useMutation('post', '/api/transfers', {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: balanceOpts.queryKey })
+      queryClient.invalidateQueries({ queryKey: transfersOpts.queryKey })
     },
-    onSubmit: async ({ value }) => {
-      setServerError('')
-      setSuccess('')
+  })
 
-      const accountNumber = Number(value.toAccountNumber)
-      if (Number.isNaN(accountNumber) || accountNumber <= 0) {
-        setServerError('Número da conta destino inválido.')
-        return
-      }
-
+  const form = useAppForm({
+    defaultValues: { toAccountNumber: '', amount: '' },
+    validators: { onSubmit: schema },
+    onSubmit: async ({ value, formApi }) => {
       const amountCents = parseBrlToInt(value.amount)
-      if (amountCents === null) {
-        setServerError('Valor deve ser maior que zero.')
-        return
-      }
-
-      const { data, error } = await fetchClient.POST('/api/transfers', {
-        body: { toAccountNumber: accountNumber, amount: amountCents },
+      if (amountCents === null) return
+      await transferMutation.mutateAsync({
+        body: {
+          toAccountNumber: Number(value.toAccountNumber),
+          amount: amountCents,
+        },
       })
-
-      if (error) {
-        setServerError(extractApiError(error))
-        return
-      }
-
-      setSuccess(
-        `Transferência realizada! Novo saldo: ${formatCurrency(data?.fromBalance ?? 0)}`,
-      )
-      form.reset()
-      queryClient.invalidateQueries({ queryKey: ['get', '/api/accounts/balance'] })
-      queryClient.invalidateQueries({ queryKey: ['get', '/api/transfers'] })
+      formApi.reset()
     },
   })
 
@@ -84,85 +73,29 @@ export default function TransferPage() {
             }}
             className="flex flex-col gap-5"
           >
-            <form.Field
-              name="toAccountNumber"
-              validators={{
-                onSubmit: ({ value }) =>
-                  !value ? 'Número da conta é obrigatório' : undefined,
-              }}
-            >
-              {(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="toAccountNumber">Número da Conta Destino</Label>
-                  <Input
-                    id="toAccountNumber"
-                    type="text"
-                    placeholder="Digite o número da conta"
-                    value={field.state.value}
-                    onChange={(e) =>
-                      field.handleChange(maskAccountInput(e.target.value))
-                    }
-                    onBlur={field.handleBlur}
-                  />
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-xs text-destructive">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
+            <form.AppField name="toAccountNumber">
+              {(f) => <f.AccountField label="Número da Conta Destino" />}
+            </form.AppField>
 
-            <form.Field
-              name="amount"
-              validators={{
-                onSubmit: ({ value }) => {
-                  if (!value) return 'Valor é obrigatório'
-                  const parsed = parseFloat(value.replace(',', '.'))
-                  if (Number.isNaN(parsed) || parsed <= 0)
-                    return 'Valor deve ser maior que zero'
-                  return undefined
-                },
-              }}
-            >
-              {(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amount">Valor (R$)</Label>
-                  <Input
-                    id="amount"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={field.state.value}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/[^0-9.,]/g, '')
-                      field.handleChange(v)
-                    }}
-                    onBlur={field.handleBlur}
-                  />
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-xs text-destructive">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
+            <form.AppField name="amount">
+              {(f) => <f.MoneyField label="Valor (R$)" />}
+            </form.AppField>
 
-            {serverError && (
-              <p className="text-center text-sm text-destructive">{serverError}</p>
+            {transferMutation.isError && (
+              <p className="text-center text-sm text-destructive">
+                {extractApiError(transferMutation.error as unknown)}
+              </p>
             )}
-            {success && (
-              <p className="text-center text-sm font-medium text-emerald-600">{success}</p>
+            {transferMutation.isSuccess && (
+              <p className="text-center text-sm font-medium text-emerald-600">
+                Transferência realizada! Novo saldo:{' '}
+                {formatCurrency(transferMutation.data.fromBalance)}
+              </p>
             )}
 
-            <form.Subscribe selector={(s) => s.isSubmitting}>
-              {(isSubmitting) => (
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Transferindo...' : 'Transferir'}
-                </Button>
-              )}
-            </form.Subscribe>
+            <form.AppForm>
+              <form.SubmitButton label="Transferir" pendingLabel="Transferindo..." />
+            </form.AppForm>
           </form>
         </CardContent>
       </Card>

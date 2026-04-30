@@ -4,8 +4,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, type ReactNode } from 'react'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useSession, isManager } from '@/lib/auth'
+
+type GateState = 'loading' | 'unauth' | 'wrong-role' | 'ok'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -13,52 +14,30 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { data: session, isPending } = useSession()
 
   const onManagerRoute = pathname.startsWith('/manager')
+  const manager = session ? isManager(session.user) : false
+
+  const gate: GateState = isPending
+    ? 'loading'
+    : !session
+      ? 'unauth'
+      : (manager && !onManagerRoute) || (!manager && onManagerRoute)
+        ? 'wrong-role'
+        : 'ok'
 
   useEffect(() => {
-    if (isPending) return
-
-    if (!session) {
-      router.replace('/sign-in')
-      return
+    if (gate === 'unauth') router.replace('/sign-in')
+    else if (gate === 'wrong-role') {
+      router.replace(manager ? '/manager/loans' : '/dashboard')
     }
-
-    const manager = isManager(session.user)
-
-    if (manager && !onManagerRoute) {
-      router.replace('/manager/loans')
-    } else if (!manager && onManagerRoute) {
-      router.replace('/dashboard')
-    }
-  }, [isPending, session, router, onManagerRoute])
-
-  if (isPending) {
-    return (
-      <div className="flex min-h-screen">
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="p-8">
-            <div className="mx-auto max-w-4xl space-y-6">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-28 w-full" />
-              <Skeleton className="h-64 w-full" />
-            </div>
-          </SidebarInset>
-        </SidebarProvider>
-      </div>
-    )
-  }
-
-  if (!session) return null
-
-  const manager = isManager(session.user)
-  const wrongRoute = (manager && !onManagerRoute) || (!manager && onManagerRoute)
-  if (wrongRoute) return null
+  }, [gate, manager, router])
 
   return (
     <div className="flex min-h-screen">
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="p-8">{children}</SidebarInset>
+        <SidebarInset className="p-8">
+          {gate === 'ok' ? children : null}
+        </SidebarInset>
       </SidebarProvider>
     </div>
   )

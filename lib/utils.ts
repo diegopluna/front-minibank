@@ -12,11 +12,6 @@ export function formatAccountNumber(value: string) {
   return value.padStart(ACCOUNT_LENGTH, '0')
 }
 
-export function maskAccountInput(value: string) {
-  if (/[a-zA-Z]/.test(value)) return value.replace(/[^a-zA-Z]/g, '')
-  return value.replace(/\D/g, '').slice(0, ACCOUNT_LENGTH)
-}
-
 const brlFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',

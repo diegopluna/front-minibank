@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Badge } from '@/components/ui/badge'
@@ -16,8 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { $api, fetchClient } from '@/lib/api/client'
-import { formatAccountNumber, formatCurrency, extractApiError } from '@/lib/utils'
+import { $api } from '@/lib/api/client'
+import { extractApiError, formatAccountNumber, formatCurrency } from '@/lib/utils'
 
 type LoanStatus = 'PENDING' | 'ACEITO' | 'RECUSADO'
 
@@ -35,59 +35,53 @@ const statusVariant: Record<LoanStatus, 'default' | 'outline' | 'destructive'> =
   RECUSADO: 'destructive',
 }
 
+const statusFilters: { value: LoanStatus | 'ALL'; label: string }[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'PENDING', label: 'Pendente' },
+  { value: 'ACEITO', label: 'Aceito' },
+  { value: 'RECUSADO', label: 'Recusado' },
+]
+
 export default function ManagerLoansPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<LoanStatus | 'ALL'>('ALL')
   const [page, setPage] = useState(0)
-  const [reviewingId, setReviewingId] = useState<string | null>(null)
-  const [actionError, setActionError] = useState('')
 
+  const loansOpts = $api.queryOptions('get', '/api/loans')
   const { data: loans, isLoading } = $api.useQuery('get', '/api/loans')
+
+  const reviewMutation = $api.useMutation('patch', '/api/loans/{id}/review', {
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: loansOpts.queryKey }),
+  })
 
   const filtered = useMemo(() => {
     if (!loans) return []
-    const list = Array.isArray(loans) ? loans : []
-    return list.filter((loan) => {
+    return loans.filter((loan) => {
       if (statusFilter !== 'ALL' && loan.status !== statusFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        const matchesName = loan.customerName.toLowerCase().includes(q)
-        const matchesAccount = String(loan.accountNumber).includes(q)
-        const matchesReason = loan.reason.toLowerCase().includes(q)
-        if (!matchesName && !matchesAccount && !matchesReason) return false
+        return (
+          loan.customerName.toLowerCase().includes(q) ||
+          String(loan.accountNumber).includes(q) ||
+          loan.reason.toLowerCase().includes(q)
+        )
       }
       return true
     })
   }, [loans, statusFilter, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  useEffect(() => {
+    if (page >= totalPages) setPage(0)
+  }, [page, totalPages])
+
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
-  async function handleReview(id: string, decision: 'APPROVE' | 'REJECT') {
-    setActionError('')
-    setReviewingId(id)
-    try {
-      const { error } = await fetchClient.PATCH('/api/loans/{id}/review', {
-        params: { path: { id } },
-        body: { decision },
-      })
-      if (error) {
-        setActionError(extractApiError(error))
-        return
-      }
-      queryClient.invalidateQueries({ queryKey: ['get', '/api/loans'] })
-    } finally {
-      setReviewingId(null)
-    }
+  function handleReview(id: string, decision: 'APPROVE' | 'REJECT') {
+    reviewMutation.mutate({ params: { path: { id } }, body: { decision } })
   }
-
-  const statusFilters: { value: LoanStatus | 'ALL'; label: string }[] = [
-    { value: 'ALL', label: 'Todos' },
-    { value: 'PENDING', label: 'Pendente' },
-    { value: 'ACEITO', label: 'Aceito' },
-    { value: 'RECUSADO', label: 'Recusado' },
-  ]
 
   return (
     <div className="space-y-4">
@@ -125,8 +119,10 @@ export default function ManagerLoansPage() {
         </div>
       </div>
 
-      {actionError && (
-        <p className="text-sm text-destructive">{actionError}</p>
+      {reviewMutation.isError && (
+        <p className="text-sm text-destructive">
+          {extractApiError(reviewMutation.error as unknown)}
+        </p>
       )}
 
       <Card>
@@ -162,49 +158,52 @@ export default function ManagerLoansPage() {
                 </TableRow>
               )}
 
-              {paginated.map((loan) => (
-                <TableRow key={loan.id}>
-                  <TableCell className="font-mono">
-                    {formatAccountNumber(String(loan.accountNumber))}
-                  </TableCell>
-                  <TableCell>{loan.customerName}</TableCell>
-                  <TableCell>{formatCurrency(loan.amount)}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">
-                    {loan.reason}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[loan.status]}>
-                      {statusLabel[loan.status]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {loan.status === 'PENDING' ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={reviewingId === loan.id}
-                          onClick={() => handleReview(loan.id, 'APPROVE')}
-                        >
-                          Aprovar
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={reviewingId === loan.id}
-                          onClick={() => handleReview(loan.id, 'REJECT')}
-                        >
-                          Recusar
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {loan.status === 'ACEITO' ? 'Aprovado' : 'Recusado'}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {paginated.map((loan) => {
+                const pendingThis =
+                  reviewMutation.isPending &&
+                  reviewMutation.variables?.params?.path?.id === loan.id
+                return (
+                  <TableRow key={loan.id}>
+                    <TableCell className="font-mono">
+                      {formatAccountNumber(String(loan.accountNumber))}
+                    </TableCell>
+                    <TableCell>{loan.customerName}</TableCell>
+                    <TableCell>{formatCurrency(loan.amount)}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{loan.reason}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[loan.status]}>
+                        {statusLabel[loan.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {loan.status === 'PENDING' ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={pendingThis}
+                            onClick={() => handleReview(loan.id, 'APPROVE')}
+                          >
+                            Aprovar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={pendingThis}
+                            onClick={() => handleReview(loan.id, 'REJECT')}
+                          >
+                            Recusar
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {loan.status === 'ACEITO' ? 'Aprovado' : 'Recusado'}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
