@@ -262,7 +262,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filtrar por status */
-                status?: "PENDING" | "ACEITO" | "RECUSADO";
+                status?: "PENDING" | "APPROVED" | "REJECTED";
             };
             header?: never;
             path?: never;
@@ -283,7 +283,7 @@ export interface operations {
                         amount: number;
                         reason: string;
                         /** @enum {string} */
-                        status: "PENDING" | "ACEITO" | "RECUSADO";
+                        status: "PENDING" | "APPROVED" | "REJECTED";
                         /** Format: date-time */
                         requestedAt: string;
                     }[];

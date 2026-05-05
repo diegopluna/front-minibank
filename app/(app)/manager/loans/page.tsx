@@ -19,27 +19,27 @@ import {
 import { $api } from '@/lib/api/client'
 import { extractApiError, formatAccountNumber, formatCurrency } from '@/lib/utils'
 
-type LoanStatus = 'PENDING' | 'ACEITO' | 'RECUSADO'
+type LoanStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 const PAGE_SIZE = 8
 
 const statusLabel: Record<LoanStatus, string> = {
   PENDING: 'Pendente',
-  ACEITO: 'Aceito',
-  RECUSADO: 'Recusado',
+  APPROVED: 'Aceito',
+  REJECTED: 'Recusado',
 }
 
 const statusVariant: Record<LoanStatus, 'default' | 'outline' | 'destructive'> = {
   PENDING: 'outline',
-  ACEITO: 'default',
-  RECUSADO: 'destructive',
+  APPROVED: 'default',
+  REJECTED: 'destructive',
 }
 
 const statusFilters: { value: LoanStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'Todos' },
   { value: 'PENDING', label: 'Pendente' },
-  { value: 'ACEITO', label: 'Aceito' },
-  { value: 'RECUSADO', label: 'Recusado' },
+  { value: 'APPROVED', label: 'Aceito' },
+  { value: 'REJECTED', label: 'Recusado' },
 ]
 
 export default function ManagerLoansPage() {
@@ -197,7 +197,7 @@ export default function ManagerLoansPage() {
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">
-                          {loan.status === 'ACEITO' ? 'Aprovado' : 'Recusado'}
+                          {loan.status === 'APPROVED' ? 'Aprovado' : 'Recusado'}
                         </span>
                       )}
                     </TableCell>
